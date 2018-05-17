@@ -20,8 +20,61 @@
 
 #include <stout/os/int_fd.hpp>
 
+#include <processthreadsapi.h>
+
 namespace internal {
 namespace windows {
+
+// This function creates LPPROC_THREAD_ATTRIBUTE_LIST.
+// LPPROC_THREAD_ATTRIBUTE_LIST is used to whitelist handles sent to
+// a child process.
+typedef _PROC_THREAD_ATTRIBUTE_LIST AttributeList;
+inline Result<std::shared_ptr<AttributeList>>
+create_attributes_list_for_handles(std::vector<HANDLE>& handles)
+{
+  if (handles.empty()) {
+    return None();
+  }
+
+  SIZE_T size = 0;
+  BOOL result = ::InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
+  if (result == FALSE) {
+    if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+      return WindowsError();
+    }
+  }
+
+  std::shared_ptr<AttributeList>
+  attribute_list(
+    reinterpret_cast<AttributeList*>(std::malloc(size)), [](AttributeList* p) {
+      ::DeleteProcThreadAttributeList(p);
+      std::free(p);
+    });
+
+  if (attribute_list == nullptr) {
+    return WindowsError(ERROR_OUTOFMEMORY);
+  }
+
+  result =
+    ::InitializeProcThreadAttributeList(attribute_list.get(), 1, 0, &size);
+  if (result == FALSE) {
+    return WindowsError();
+  }
+
+  result = ::UpdateProcThreadAttribute(
+    attribute_list.get(),
+    0,
+    PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+    handles.data(),
+    (handles.size() * sizeof(HANDLE)),
+    nullptr,
+    nullptr);
+  if (result == FALSE) {
+    return WindowsError();
+  }
+
+  return attribute_list;
+}
 
 // This function enables or disables inheritance for a Windows file handle.
 //

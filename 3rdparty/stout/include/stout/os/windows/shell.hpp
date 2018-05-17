@@ -253,6 +253,7 @@ inline Try<ProcessData> create_process(
   if (create_suspended) {
     creation_flags |= CREATE_SUSPENDED;
   }
+  creation_flags |= EXTENDED_STARTUPINFO_PRESENT;
 
   // Construct the environment that will be passed to `::CreateProcessW`.
   const Option<std::wstring> env_string = create_process_env(environment);
@@ -266,9 +267,15 @@ inline Try<ProcessData> create_process(
 
   PROCESS_INFORMATION process_info = {};
 
-  STARTUPINFOW startup_info = {};
-  startup_info.cb = sizeof(STARTUPINFOW);
+  STARTUPINFOEXW startup_info_ex = {};
 
+  // Windows provides a way to whitelist a set of handles to be
+  // inherted by the child process.
+  // https://blogs.msdn.microsoft.com/oldnewthing/20111216-00/?p=8873
+  Result<std::shared_ptr<AttributeList>>
+      attribute_list = None();
+
+  std::vector<HANDLE> handles;
   // Hook up the stdin/out/err pipes and use the `STARTF_USESTDHANDLES`
   // flag to instruct the child to use them [1].
   // A more user-friendly example can be found in [2].
@@ -279,16 +286,26 @@ inline Try<ProcessData> create_process(
     // Each of these handles must be inheritable.
     foreach (const int_fd& fd, pipes.get()) {
       const Try<Nothing> inherit = set_inherit(fd, true);
+      handles.push_back(fd);
       if (inherit.isError()) {
         return Error(inherit.error());
       }
     }
+    attribute_list = create_attributes_list_for_handles(handles);
+    if (attribute_list.isError()) {
+      return Error(attribute_list.error());
+    }
+    if (attribute_list.isSome()) {
+      startup_info_ex.lpAttributeList = attribute_list->get();
+    }
 
-    startup_info.dwFlags |= STARTF_USESTDHANDLES;
-    startup_info.hStdInput = std::get<0>(pipes.get());
-    startup_info.hStdOutput = std::get<1>(pipes.get());
-    startup_info.hStdError = std::get<2>(pipes.get());
+    startup_info_ex.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+    startup_info_ex.StartupInfo.hStdInput = std::get<0>(pipes.get());
+    startup_info_ex.StartupInfo.hStdOutput = std::get<1>(pipes.get());
+    startup_info_ex.StartupInfo.hStdError = std::get<2>(pipes.get());
   }
+
+  startup_info_ex.StartupInfo.cb = sizeof(startup_info_ex);
 
   const BOOL result = ::CreateProcessW(
       // This is replaced by the first token of `arg_buffer` string.
@@ -300,7 +317,7 @@ inline Try<ProcessData> create_process(
       creation_flags,
       static_cast<LPVOID>(process_env),
       static_cast<LPCWSTR>(nullptr), // Inherit working directory.
-      &startup_info,
+      &startup_info_ex.StartupInfo,
       &process_info);
 
   // NOTE: The MSDN documentation for `CreateProcess` states that it
