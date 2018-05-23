@@ -1020,7 +1020,9 @@ void HierarchicalAllocatorProcess::updateInverseOffer(
   Framework& framework = frameworks.at(frameworkId);
   Slave& slave = slaves.at(slaveId);
 
-  CHECK(slave.maintenance.isSome());
+  CHECK(slave.maintenance.isSome())
+    << "Agent " << slaveId
+    << " (" << slave.info.hostname() << ") should have maintenance scheduled";
 
   // NOTE: We currently implement maintenance in the allocator to be able to
   // leverage state and features such as the FrameworkSorter and OfferFilter.
@@ -2512,8 +2514,14 @@ double HierarchicalAllocatorProcess::_quota_allocated(
     const string& role,
     const string& resource)
 {
+  if (!roleSorter->contains(role)) {
+    // This can occur when execution of this callback races with removal of the
+    // metric for a role which does not have any associated frameworks.
+    return 0.;
+  }
+
   Option<Value::Scalar> used =
-    quotaRoleSorter->allocationScalarQuantities(role)
+    roleSorter->allocationScalarQuantities(role)
       .get<Value::Scalar>(resource);
 
   return used.isSome() ? used->value() : 0;

@@ -157,23 +157,6 @@ bool CgroupsIsolatorProcess::supportsStandalone()
 }
 
 
-void CgroupsIsolatorProcess::initialize()
-{
-  foreachvalue (const Owned<Subsystem>& subsystem, subsystems) {
-    spawn(subsystem.get());
-  }
-}
-
-
-void CgroupsIsolatorProcess::finalize()
-{
-  foreachvalue (const Owned<Subsystem>& subsystem, subsystems) {
-    terminate(subsystem.get());
-    wait(subsystem.get());
-  }
-}
-
-
 Future<Nothing> CgroupsIsolatorProcess::recover(
     const list<ContainerState>& states,
     const hashset<ContainerID>& orphans)
