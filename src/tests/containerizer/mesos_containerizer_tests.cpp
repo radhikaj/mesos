@@ -1335,13 +1335,12 @@ TEST_F(MesosLauncherStatusTest, ExecutorPIDTest)
   ContainerID invalidContainerId;
   invalidContainerId.set_value(id::UUID::random().toString());
 
+  mesos::slave::ContainerIO containerIO;
   Try<pid_t> forked = launcher.get()->fork(
       containerId,
       path::join(flags.launcher_dir, MESOS_CONTAINERIZER),
       vector<string>(),
-      Subprocess::FD(STDIN_FILENO),
-      Subprocess::FD(STDOUT_FILENO),
-      Subprocess::FD(STDERR_FILENO),
+      containerIO,
       nullptr,
       None(),
       None(),

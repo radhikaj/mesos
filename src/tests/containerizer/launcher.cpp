@@ -30,7 +30,7 @@ ACTION_P(InvokeRecover, launcher)
 ACTION_P(InvokeFork, launcher)
 {
   return launcher->real->fork(
-      arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+      arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 
@@ -51,9 +51,9 @@ TestLauncher::TestLauncher(const process::Owned<slave::Launcher>& _real)
   EXPECT_CALL(*this, recover(_))
     .WillRepeatedly(DoDefault());
 
-  ON_CALL(*this, fork(_, _, _, _, _, _, _, _, _, _))
+  ON_CALL(*this, forkImpl(_, _, _, _, _, _, _, _, _))
     .WillByDefault(InvokeFork(this));
-  EXPECT_CALL(*this, fork(_, _, _, _, _, _, _, _, _, _))
+  EXPECT_CALL(*this, forkImpl(_, _, _, _, _, _, _, _, _))
     .WillRepeatedly(DoDefault());
 
   ON_CALL(*this, destroy(_))
@@ -64,6 +64,29 @@ TestLauncher::TestLauncher(const process::Owned<slave::Launcher>& _real)
 
 
 TestLauncher::~TestLauncher() {}
+
+Try<pid_t> TestLauncher::fork(
+  const ContainerID& containerId,
+  const std::string& path,
+  const std::vector<std::string>& argv,
+  const mesos::slave::ContainerIO& containerIO,
+  const flags::FlagsBase* flags,
+  const Option<std::map<std::string, std::string>>& environment,
+  const Option<int>& enterNamespaces,
+  const Option<int>& cloneNamespaces,
+  const std::vector<int_fd>& whitelistFds)
+{
+  return forkImpl(
+    containerId,
+    path,
+    argv,
+    containerIO,
+    flags,
+    environment,
+    enterNamespaces,
+    cloneNamespaces,
+    whitelistFds);
+}
 
 } // namespace tests {
 } // namespace internal {

@@ -56,19 +56,29 @@ public:
       process::Future<hashset<ContainerID>>(
           const std::list<mesos::slave::ContainerState>& states));
 
-  MOCK_METHOD10(
-      fork,
+  MOCK_METHOD9(
+      forkImpl,
       Try<pid_t>(
           const ContainerID& containerId,
           const std::string& path,
           const std::vector<std::string>& argv,
-          const process::Subprocess::IO& in,
-          const process::Subprocess::IO& out,
-          const process::Subprocess::IO& err,
+          const mesos::slave::ContainerIO& containerIO,
           const flags::FlagsBase* flags,
           const Option<std::map<std::string, std::string>>& env,
           const Option<int>& enterNamespaces,
-          const Option<int>& cloneNamespaces));
+          const Option<int>& cloneNamespaces,
+          const std::vector<int_fd> whitelistFds));
+
+  virtual Try<pid_t> fork(
+      const ContainerID& containerId,
+      const std::string& path,
+      const std::vector<std::string>& argv,
+      const mesos::slave::ContainerIO& containerIO,
+      const flags::FlagsBase* flags,
+      const Option<std::map<std::string, std::string>>& environment,
+      const Option<int>& enterNamespaces,
+      const Option<int>& cloneNamespaces,
+      const std::vector<int_fd>& whitelistFds = {});
 
   MOCK_METHOD1(
       destroy,
