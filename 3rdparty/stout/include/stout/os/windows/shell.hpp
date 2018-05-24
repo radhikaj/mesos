@@ -241,7 +241,8 @@ inline Try<ProcessData> create_process(
     const std::vector<std::string>& argv,
     const Option<std::map<std::string, std::string>>& environment,
     const bool create_suspended = false,
-    const Option<std::array<int_fd, 3>>& pipes = None())
+    const Option<std::array<int_fd, 3>>& pipes = None(),
+    const std::vector<int_fd>& whitelist_fds = {})
 {
   // TODO(andschwa): Assert that `command` and `argv[0]` are the same.
   const std::wstring arg_string = stringify_args(argv);
@@ -249,7 +250,8 @@ inline Try<ProcessData> create_process(
   arg_buffer.push_back(L'\0');
 
   // Create the process with a Unicode environment.
-  DWORD creation_flags = CREATE_UNICODE_ENVIRONMENT;
+  DWORD creation_flags =
+    CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT;
   if (create_suspended) {
     creation_flags |= CREATE_SUSPENDED;
   }
@@ -266,28 +268,55 @@ inline Try<ProcessData> create_process(
 
   PROCESS_INFORMATION process_info = {};
 
-  STARTUPINFOW startup_info = {};
-  startup_info.cb = sizeof(STARTUPINFOW);
+  STARTUPINFOEXW startup_info_ex = {};
+  startup_info_ex.StartupInfo.cb = sizeof(startup_info_ex);
 
-  // Hook up the stdin/out/err pipes and use the `STARTF_USESTDHANDLES`
-  // flag to instruct the child to use them [1].
-  // A more user-friendly example can be found in [2].
-  //
-  // [1] https://msdn.microsoft.com/en-us/library/windows/desktop/ms686331(v=vs.85).aspx
-  // [2] https://msdn.microsoft.com/en-us/library/windows/desktop/ms682499(v=vs.85).aspx
+  // Windows provides a way to whitelist a set of handles to be
+  // inherited by the child process.
+  // https://blogs.msdn.microsoft.com/oldnewthing/20111216-00/?p=8873
+  // (1) We're setting the pipe handles and whitelisted handles to be
+  //     temporarily inheritable.
+  // (2) We're explicitly whitelisting the handles using a Windows API.
+  // (3) We're then setting the handles to back to non-inheritable
+  //     after the child process has been created.
+  std::vector<HANDLE> handles;
   if (pipes.isSome()) {
     // Each of these handles must be inheritable.
     foreach (const int_fd& fd, pipes.get()) {
       const Try<Nothing> inherit = set_inherit(fd, true);
+      handles.emplace_back(static_cast<HANDLE>(fd));
       if (inherit.isError()) {
         return Error(inherit.error());
       }
     }
+    // Hook up the stdin/out/err pipes and use the `STARTF_USESTDHANDLES`
+    // flag to instruct the child to use them [1].
+    // A more user-friendly example can be found in [2].
+    //
+    // [1] https://msdn.microsoft.com/en-us/library/windows/desktop/ms686331(v=vs.85).aspx
+    // [2] https://msdn.microsoft.com/en-us/library/windows/desktop/ms682499(v=vs.85).aspx
+    startup_info_ex.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+    startup_info_ex.StartupInfo.hStdInput = std::get<0>(pipes.get());
+    startup_info_ex.StartupInfo.hStdOutput = std::get<1>(pipes.get());
+    startup_info_ex.StartupInfo.hStdError = std::get<2>(pipes.get());
+  }
+  if (!whitelist_fds.empty()) {
+    foreach (const int_fd& fd, whitelist_fds) {
+      const Try<Nothing> inherit = set_inherit(fd, true);
+      handles.emplace_back(static_cast<HANDLE>(fd));
+      if (inherit.isError()) {
+        return Error(inherit.error());
+      }
+    }
+  }
 
-    startup_info.dwFlags |= STARTF_USESTDHANDLES;
-    startup_info.hStdInput = std::get<0>(pipes.get());
-    startup_info.hStdOutput = std::get<1>(pipes.get());
-    startup_info.hStdError = std::get<2>(pipes.get());
+  Result<std::shared_ptr<AttributeList>> attribute_list =
+    create_attributes_list_for_handles(handles);
+  if (attribute_list.isError()) {
+    return Error(attribute_list.error());
+  }
+  if (attribute_list.isSome()) {
+    startup_info_ex.lpAttributeList = attribute_list->get();
   }
 
   const BOOL result = ::CreateProcessW(
@@ -300,7 +329,7 @@ inline Try<ProcessData> create_process(
       creation_flags,
       static_cast<LPVOID>(process_env),
       static_cast<LPCWSTR>(nullptr), // Inherit working directory.
-      &startup_info,
+      &startup_info_ex.StartupInfo,
       &process_info);
 
   // NOTE: The MSDN documentation for `CreateProcess` states that it
@@ -320,6 +349,15 @@ inline Try<ProcessData> create_process(
     // previous inheritance semantics of each `HANDLE`. It is assumed
     // that users of this function send non-inheritable handles.
     foreach (const int_fd& fd, pipes.get()) {
+      const Try<Nothing> inherit = set_inherit(fd, false);
+      if (inherit.isError()) {
+        return Error(inherit.error());
+      }
+    }
+  }
+
+  if (!whitelist_fds.empty()) {
+    foreach (const int_fd& fd, whitelist_fds) {
       const Try<Nothing> inherit = set_inherit(fd, false);
       if (inherit.isError()) {
         return Error(inherit.error());
