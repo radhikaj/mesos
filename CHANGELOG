@@ -1,3 +1,34 @@
+Release Notes - Mesos - Version 1.7.0 (WIP)
+-------------------------------------------
+This release contains the following new features:
+
+  * [MESOS-8792] - Added a new `linux/devices` isolator that automatically
+    populates containers with devices that have been whitelisted with the
+    `--allowed_devices` agent flag.
+
+  * [MESOS-8340] Added a new `--enforce_container_ports` option to toggle
+    ports resource enforcement by the `network/ports` isolator.
+
+Additional API Changes:
+  * Container logger module interface has been changed. The `prepare()` method
+    now takes `ContainerID` and `ContainerConfig` instead.
+  * `Isolator::recover` interface has been changed to take an `std::vector`
+    instead of `std::list`.
+
+Release Notes - Mesos - Version 1.6.1 (WIP)
+-------------------------------------------
+* This is a bug fix release.
+
+** Bug
+  * [MESOS-8786] - CgroupIsolatorProcess accesses subsystem processes directly.
+  * [MESOS-8904] - Master crash when removing quota.
+  * [MESOS-8906] - `UriDiskProfileAdaptor` fails to update profile selectors.
+  * [MESOS-8945] - Master check failure due to CHECK_SOME(providerId).
+  * [MESOS-8947] - Improve the container preparing logging in IOSwitchboard and volume/secret isolator.
+  * [MESOS-8952] - process::await/collect n^2 performance issue.
+  * [MESOS-8963] - Executor crash trying to print container ID.
+
+
 Release Notes - Mesos - Version 1.6.0
 -------------------------------------------
 This release contains the following new features:
@@ -12,9 +43,10 @@ This release contains the following new features:
   * [MESOS-7944] - **Experimental** Added a new `MemoryProfiler` class to
     libprocess to aid in debugging memory issues.
 
-  * [MESOS-8054] - Schedulers can now receive feedback about offer operations
-    which operate on resources managed by resource providers. In the future,
-    this feature will be extended to operations on agent default resources.
+  * [MESOS-8054] - **Experimental** Schedulers can now receive feedback about
+    offer operations which operate on resources managed by resource providers.
+    In the future, this feature will be extended to operations on agent default
+    resources.
 
   * [MESOS-8534] - **Experimental** A nested container is now allowed
     to join a separate CNI network than its parent container.
@@ -113,6 +145,7 @@ All Experimental Features:
   * [MESOS-5931] - Support auto backend in Mesos Containerizer.
   * [MESOS-6014] - Added port mapping CNI plugin.
   * [MESOS-7944] - Libprocess `MemoryProfiler`.
+  * [MESOS-8054] - Offer operation feedback.
   * [MESOS-8534] - Separate CNI networks for nested containers.
   * [MESOS-8649] - Support for Container Storage Interface version 0.2.
   * [MESOS-8801] - Linux support for jemalloc.
@@ -347,7 +380,20 @@ All Resolved Issues:
     * [MESOS-8291] - Add documentation about fault domains
 
 
-Release Notes - Mesos - Version 1.5.1 (WIP)
+Release Notes - Mesos - Version 1.5.2 (WIP)
+-------------------------------------------
+* This is a bug fix release.
+
+** Bug
+  * [MESOS-8904] - Master crash when removing quota.
+  * [MESOS-8906] - `UriDiskProfileAdaptor` fails to update profile selectors.
+  * [MESOS-8945] - Master check failure due to CHECK_SOME(providerId).
+  * [MESOS-8947] - Improve the container preparing logging in IOSwitchboard and volume/secret isolator.
+  * [MESOS-8952] - process::await/collect n^2 performance issue.
+  * [MESOS-8963] - Executor crash trying to print container ID.
+
+
+Release Notes - Mesos - Version 1.5.1
 -------------------------------------------
 * This is a bug fix release.
 
@@ -375,11 +421,14 @@ Release Notes - Mesos - Version 1.5.1 (WIP)
   * [MESOS-8604] - Quota headroom tracking may be incorrect in the presence of hierarchical reservation.
   * [MESOS-8605] - Terminal task status update will not send if 'docker inspect' is hung.
   * [MESOS-8619] - Docker on Windows uses `USERPROFILE` instead of `HOME` for credentials.
+  * [MESOS-8624] - Valid tasks may be explicitly dropped by agent due to race conditions.
   * [MESOS-8631] - Agent should be able to start a task with every CPU on a Windows machine.
   * [MESOS-8641] - Event stream could send heartbeat before subscribed.
   * [MESOS-8646] - Agent should be able to resolve file names on open files.
   * [MESOS-8651] - Potential memory leaks in the `volume/sandbox_path` isolator.
+  * [MESOS-8741] - `Add` to sequence will not run if it races with sequence destruction.
   * [MESOS-8742] - Agent resource provider config API calls should be idempotent.
+  * [MESOS-8786] - CgroupIsolatorProcess accesses subsystem processes directly.
   * [MESOS-8787] - RP-related API should be experimental.
   * [MESOS-8876] - Normal exit of Docker container using rexray volume results in TASK_FAILED.
   * [MESOS-8881] - Enable epoll backend in libevent integration.
@@ -897,9 +946,15 @@ Release Notes - Mesos - Version 1.4.2 (WIP)
   * [MESOS-8604] - Quota headroom tracking may be incorrect in the presence of hierarchical reservation.
   * [MESOS-8605] - Terminal task status update will not send if 'docker inspect' is hung.
   * [MESOS-8651] - Potential memory leaks in the `volume/sandbox_path` isolator.
+  * [MESOS-8786] - CgroupIsolatorProcess accesses subsystem processes directly.
   * [MESOS-8876] - Normal exit of Docker container using rexray volume results in TASK_FAILED.
   * [MESOS-8881] - Enable epoll backend in libevent integration.
   * [MESOS-8885] - Disable libevent debug mode.
+  * [MESOS-8904] - Master crash when removing quota.
+  * [MESOS-8945] - Master check failure due to CHECK_SOME(providerId).
+  * [MESOS-8947] - Improve the container preparing logging in IOSwitchboard and volume/secret isolator.
+  * [MESOS-8952] - process::await/collect n^2 performance issue.
+  * [MESOS-8963] - Executor crash trying to print container ID.
 
 
 Release Notes - Mesos - Version 1.4.1
@@ -1211,9 +1266,11 @@ All Issues:
   * [MESOS-8576] - Improve discard handling of 'Docker::inspect()'.
   * [MESOS-8605] - Terminal task status update will not send if 'docker inspect' is hung.
   * [MESOS-8651] - Potential memory leaks in the `volume/sandbox_path` isolator.
+  * [MESOS-8786] - CgroupIsolatorProcess accesses subsystem processes directly.
   * [MESOS-8876] - Normal exit of Docker container using rexray volume results in TASK_FAILED.
   * [MESOS-8881] - Enable epoll backend in libevent integration.
   * [MESOS-8885] - Disable libevent debug mode.
+  * [MESOS-8904] - Master crash when removing quota.
 
 
 Release Notes - Mesos - Version 1.3.2

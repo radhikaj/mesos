@@ -222,10 +222,12 @@ TEST_F(FetcherTest, LogFailureToStderr)
 #ifndef __WINDOWS__
 // Tests that non-root users are unable to fetch root-protected files on the
 // local filesystem.
-TEST_F(FetcherTest, ROOT_RootProtectedFileURI)
+TEST_F(FetcherTest, ROOT_UNPRIVILEGED_USER_RootProtectedFileURI)
 {
-  const string user = "nobody";
-  ASSERT_SOME(os::getuid(user));
+  Option<string> user = os::getenv("SUDO_USER");
+  ASSERT_SOME(user);
+
+  ASSERT_SOME(os::getuid(user.get()));
 
   string fromDir = path::join(os::getcwd(), "from");
   ASSERT_SOME(os::mkdir(fromDir));
@@ -240,7 +242,7 @@ TEST_F(FetcherTest, ROOT_RootProtectedFileURI)
   containerId.set_value(id::UUID::random().toString());
 
   CommandInfo commandInfo;
-  commandInfo.set_user(user);
+  commandInfo.set_user(user.get());
 
   CommandInfo::URI* uri = commandInfo.add_uris();
   uri->set_value(uri::from_path(testFile));
@@ -756,10 +758,8 @@ TEST_F_TEMP_DISABLED_ON_WINDOWS(FetcherTest, NoExtractExecutable)
 }
 
 
-// NOTE: This is disabled on Windows because `os::shell()` is deleted.
-// Also, permissions handling needs to be worked out, see MESOS-3176.
-#ifndef __WINDOWS__
-TEST_F(FetcherTest, ExtractNotExecutable)
+// NOTE: Permissions handling needs to be worked out, see MESOS-3176.
+TEST_F_TEMP_DISABLED_ON_WINDOWS(FetcherTest, ExtractNotExecutable)
 {
   // First construct a temporary file that can be fetched and archived with tar
   // gzip.
@@ -811,17 +811,14 @@ TEST_F(FetcherTest, ExtractNotExecutable)
 
   verifyMetrics(1, 0);
 }
-#endif // __WINDOWS__
 
 
 // Tests extracting tar file with extension .tar.
-// NOTE: This is disabled on Windows because `os::shell()` is deleted.
 //
 // Won't be supported on Windows for now; long term thoughts are to perhaps
 // use a code library to provide 'tar' functionality programmatically,
 // see MESOS-8064.
-#ifndef __WINDOWS__
-TEST_F(FetcherTest, ExtractTar)
+TEST_F_TEMP_DISABLED_ON_WINDOWS(FetcherTest, ExtractTar)
 {
   // First construct a temporary file that can be fetched and archived with
   // tar.
@@ -864,16 +861,12 @@ TEST_F(FetcherTest, ExtractTar)
 
   verifyMetrics(1, 0);
 }
-#endif // __WINDOWS__
 
 
-// NOTE: This is disabled on Windows because `os::shell()` is deleted.
-//
 // Won't be supported on Windows for now; long term thoughts are to perhaps
 // use a code library to provide 'gzip' functionality programmatically,
 // see MESOS-8064.
-#ifndef __WINDOWS__
-TEST_F(FetcherTest, ExtractGzipFile)
+TEST_F_TEMP_DISABLED_ON_WINDOWS(FetcherTest, ExtractGzipFile)
 {
   // First construct a temporary file that can be fetched and archived with
   // gzip.
@@ -911,7 +904,6 @@ TEST_F(FetcherTest, ExtractGzipFile)
 
   verifyMetrics(1, 0);
 }
-#endif // __WINDOWS__
 
 
 TEST_F(FetcherTest, UNZIP_ExtractFile)
@@ -1133,8 +1125,6 @@ TEST_F(FetcherTest, UseCustomOutputFile)
 }
 
 
-// NOTE: This is disabled on Windows because `os::shell()` is deleted.
-#ifndef __WINDOWS__
 TEST_F_TEMP_DISABLED_ON_WINDOWS(FetcherTest, CustomGzipOutputFile)
 {
   // First construct a temporary file that can be fetched.
@@ -1174,7 +1164,6 @@ TEST_F_TEMP_DISABLED_ON_WINDOWS(FetcherTest, CustomGzipOutputFile)
 
   verifyMetrics(1, 0);
 }
-#endif // __WINDOWS__
 
 
 // TODO(hausdorff): `os::chmod` does not exist on Windows.
@@ -1275,10 +1264,7 @@ TEST_F(FetcherTest, HdfsURI)
 // agent towards the fetcher. By supplying an invalid SSL setup, we
 // force the fetcher to fail if the parent process does not filter
 // them out.
-//
-// NOTE: This is disabled on Windows because `os::shell()` is deleted.
-#ifndef __WINDOWS__
-TEST_F(FetcherTest, SSLEnvironmentSpillover)
+TEST_F_TEMP_DISABLED_ON_WINDOWS(FetcherTest, SSLEnvironmentSpillover)
 {
   // Patch some critical libprocess environment variables into the
   // parent process of the mesos-fetcher. We expect this test to fail
@@ -1332,7 +1318,6 @@ TEST_F(FetcherTest, SSLEnvironmentSpillover)
     os::setenv("LIBPROCESS_SSL_KEY_FILE", key);
   }
 }
-#endif // __WINDOWS__
 
 } // namespace tests {
 } // namespace internal {

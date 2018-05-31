@@ -53,7 +53,6 @@ using process::UPID;
 
 using std::cout;
 using std::endl;
-using std::list;
 using std::ostringstream;
 using std::string;
 using std::vector;
@@ -261,12 +260,12 @@ TEST(ProcessTest, Process_BENCHMARK_ClientServer)
   Stopwatch watch;
   watch.start();
 
-  list<Future<http::Response>> futures;
+  vector<Future<http::Response>> futures;
   foreach (const Owned<ClientProcess>& client, clients) {
     futures.push_back(http::get(client->self(), "run", query));
   }
 
-  Future<list<http::Response>> responses = collect(futures);
+  Future<vector<http::Response>> responses = collect(futures);
   AWAIT_READY(responses);
 
   Duration elapsed = watch.elapsed();
@@ -495,6 +494,8 @@ TEST(ProcessTest, Process_BENCHMARK_ThroughputPerformance)
 }
 
 
+// TODO(andschwa): Turn this test back on when MESOS-8915 is solved.
+#ifndef __WINDOWS__
 class DispatchProcess : public Process<DispatchProcess>
 {
 public:
@@ -579,6 +580,7 @@ TEST(ProcessTest, Process_BENCHMARK_DispatchDefer)
   DispatchProcess::run<DispatchProcess::Movable>("Movable", repeats);
   DispatchProcess::run<DispatchProcess::Copyable>("Copyable", repeats);
 }
+#endif // __WINDOWS__
 
 
 class ProtobufInstallHandlerBenchmarkProcess

@@ -93,7 +93,7 @@ class DockerTest : public MesosTest
 
     ASSERT_SOME(docker);
 
-    Future<list<Docker::Container>> containers =
+    Future<vector<Docker::Container>> containers =
       docker.get()->ps(true, NAME_PREFIX);
 
     AWAIT_READY(containers);
@@ -147,8 +147,10 @@ TEST_F(DockerTest, ROOT_DOCKER_interface)
       false).get();
 
   // Verify that we do not see the container.
-  Future<list<Docker::Container>> containers = docker->ps(true, containerName);
+  Future<vector<Docker::Container>> containers =
+    docker->ps(true, containerName);
   AWAIT_READY(containers);
+
   foreach (const Docker::Container& container, containers.get()) {
     EXPECT_NE("/" + containerName, container.name);
   }
@@ -165,7 +167,7 @@ TEST_F(DockerTest, ROOT_DOCKER_interface)
   containerInfo.mutable_docker()->CopyFrom(dockerInfo);
 
   CommandInfo commandInfo;
-  commandInfo.set_value(DOCKER_SLEEP_CMD(120));
+  commandInfo.set_value(SLEEP_COMMAND(120));
 
   Try<Docker::RunOptions> runOptions = Docker::RunOptions::create(
       containerInfo,
@@ -326,7 +328,7 @@ TEST_F(DockerTest, ROOT_DOCKER_kill)
   containerInfo.mutable_docker()->CopyFrom(dockerInfo);
 
   CommandInfo commandInfo;
-  commandInfo.set_value(DOCKER_SLEEP_CMD(120));
+  commandInfo.set_value(SLEEP_COMMAND(120));
 
   Try<Docker::RunOptions> runOptions = Docker::RunOptions::create(
       containerInfo,
@@ -359,7 +361,7 @@ TEST_F(DockerTest, ROOT_DOCKER_kill)
 
   // Now, the container should not appear in the result of ps().
   // But it should appear in the result of ps(true).
-  Future<list<Docker::Container>> containers = docker->ps();
+  Future<vector<Docker::Container>> containers = docker->ps();
   AWAIT_READY(containers);
 
   auto nameEq = [&containerName](const Docker::Container& container) {

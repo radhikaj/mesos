@@ -181,7 +181,7 @@ public:
 
     ASSERT_SOME(docker);
 
-    Future<list<Docker::Container>> containers =
+    Future<vector<Docker::Container>> containers =
       docker.get()->ps(true, slave::DOCKER_NAME_PREFIX);
 
     AWAIT_READY(containers);
@@ -642,12 +642,10 @@ TEST_F(DockerContainerizerTest, ROOT_DOCKER_MaxCompletionTime)
     .WillOnce(FutureArg<1>(&statusRunning))
     .WillOnce(FutureArg<1>(&statusFailed));
 
+  Future<Nothing> executorTerminated =
+    FUTURE_DISPATCH(_, &Slave::executorTerminated);
+
   driver.launchTasks(offers.get()[0].id(), {task});
-
-  AWAIT_READY_FOR(containerId, Seconds(60));
-
-  Future<Option<ContainerTermination>> termination =
-dockerContainerizer.wait(containerId.get());
 
   AWAIT_READY_FOR(statusStarting, Seconds(60));
   EXPECT_EQ(TASK_STARTING, statusStarting->state());
@@ -659,8 +657,7 @@ dockerContainerizer.wait(containerId.get());
   EXPECT_EQ(
       TaskStatus::REASON_MAX_COMPLETION_TIME_REACHED, statusFailed->reason());
 
-  AWAIT_READY(termination);
-  EXPECT_SOME(termination.get());
+  AWAIT_READY(executorTerminated);
 
   driver.stop();
   driver.join();
@@ -1865,9 +1862,7 @@ TEST_F(DockerContainerizerTest, ROOT_DOCKER_RecoverPersistentVolumes)
   AWAIT_READY(_recover);
 
   Future<Option<ContainerTermination>> termination =
-    dockerContainerizer->wait(containerId.get());
-
-  dockerContainerizer->destroy(containerId.get());
+    dockerContainerizer->destroy(containerId.get());
 
   AWAIT_READY(termination);
   EXPECT_SOME(termination.get());
@@ -4199,7 +4194,8 @@ TEST_F(DockerContainerizerTest, ROOT_DOCKER_CGROUPS_CFS_CgroupsEnableCFS)
 // Run a task as non root while inheriting this ownership from the
 // framework supplied default user. Tests if the sandbox "stdout"
 // is correctly owned and writeable by the tasks user.
-TEST_F(DockerContainerizerTest, ROOT_DOCKER_Non_Root_Sandbox)
+TEST_F(DockerContainerizerTest,
+       ROOT_DOCKER_UNPRIVILEGED_USER_NonRootSandbox)
 {
   Try<Owned<cluster::Master>> master = StartMaster();
   ASSERT_SOME(master);
@@ -4234,9 +4230,12 @@ TEST_F(DockerContainerizerTest, ROOT_DOCKER_Non_Root_Sandbox)
   AWAIT_READY(slaveRegisteredMessage);
   SlaveID slaveId = slaveRegisteredMessage->slave_id();
 
+  Option<string> user = os::getenv("SUDO_USER");
+  ASSERT_SOME(user);
+
   FrameworkInfo framework;
   framework.set_name("default");
-  framework.set_user("nobody");
+  framework.set_user(user.get());
   framework.set_principal(DEFAULT_CREDENTIAL.principal());
   framework.add_capabilities()->set_type(
       FrameworkInfo::Capability::RESERVATION_REFINEMENT);

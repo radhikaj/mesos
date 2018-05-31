@@ -908,7 +908,7 @@ Future<Nothing> DockerContainerizerProcess::recover(
 
 Future<Nothing> DockerContainerizerProcess::_recover(
     const Option<SlaveState>& state,
-    const list<Docker::Container>& _containers)
+    const vector<Docker::Container>& _containers)
 {
   LOG(INFO) << "Got the list of Docker containers";
 
@@ -1101,10 +1101,10 @@ Future<Nothing> DockerContainerizerProcess::_recover(
 
 
 Future<Nothing> DockerContainerizerProcess::__recover(
-    const list<Docker::Container>& _containers)
+    const vector<Docker::Container>& _containers)
 {
-  list<ContainerID> containerIds;
-  list<Future<Nothing>> futures;
+  vector<ContainerID> containerIds;
+  vector<Future<Nothing>> futures;
   foreach (const Docker::Container& container, _containers) {
     VLOG(1) << "Checking if Docker container named '"
             << container.name << "' was started by Mesos";
@@ -1383,12 +1383,7 @@ Future<Docker::Container> DockerContainerizerProcess::launchExecutorContainer(
   Container* container = containers_.at(containerId);
   container->state = Container::RUNNING;
 
-  return logger->prepare(
-      container->containerConfig.executor_info(),
-      container->containerWorkDir,
-      container->containerConfig.has_user()
-        ? container->containerConfig.user()
-        : Option<string>::none())
+  return logger->prepare(container->id, container->containerConfig)
     .then(defer(
         self(),
         [=](const ContainerIO& containerIO)
@@ -1548,12 +1543,7 @@ Future<pid_t> DockerContainerizerProcess::launchExecutorProcess(
 
   return allocateGpus
     .then(defer(self(), [=]() {
-      return logger->prepare(
-          container->containerConfig.executor_info(),
-          container->containerWorkDir,
-          container->containerConfig.has_user()
-            ? container->containerConfig.user()
-            : Option<string>::none());
+      return logger->prepare(container->id, container->containerConfig);
     }))
     .then(defer(
         self(),

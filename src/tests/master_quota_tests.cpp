@@ -468,6 +468,13 @@ TEST_F(MasterQuotaTest, RemoveSingleQuota)
 
     AWAIT_EXPECT_RESPONSE_STATUS_EQ(OK().status, response);
 
+    const string metricKey =
+      "allocator/mesos/quota/roles/" + ROLE1 + "/resources/cpus/guarantee";
+
+    JSON::Object metrics = Metrics();
+
+    EXPECT_EQ(1, metrics.values[metricKey]);
+
     // Remove the previously requested quota.
     Future<Nothing> receivedRemoveRequest;
     EXPECT_CALL(allocator, removeQuota(Eq(ROLE1)))
@@ -480,6 +487,10 @@ TEST_F(MasterQuotaTest, RemoveSingleQuota)
 
     // Ensure that the quota remove request has reached the allocator.
     AWAIT_READY(receivedRemoveRequest);
+
+    metrics = Metrics();
+
+    ASSERT_NONE(metrics.at<JSON::Number>(metricKey));
   }
 }
 
@@ -518,7 +529,7 @@ TEST_F(MasterQuotaTest, Status)
 
     // Convert JSON response to `QuotaStatus` protobuf.
     const Try<QuotaStatus> status = ::protobuf::parse<QuotaStatus>(parse.get());
-    ASSERT_FALSE(status.isError());
+    ASSERT_SOME(status);
 
     EXPECT_TRUE(status->infos().empty());
   }
@@ -555,7 +566,7 @@ TEST_F(MasterQuotaTest, Status)
 
     // Convert JSON response to `QuotaStatus` protobuf.
     Try<QuotaStatus> status = ::protobuf::parse<QuotaStatus>(parse.get());
-    ASSERT_FALSE(status.isError());
+    ASSERT_SOME(status);
 
     upgradeResources(&status.get());
 
@@ -1321,7 +1332,7 @@ TEST_F(MasterQuotaTest, AuthorizeGetUpdateQuotaRequests)
 
     // Convert JSON response to `QuotaStatus` protobuf.
     const Try<QuotaStatus> status = ::protobuf::parse<QuotaStatus>(parse.get());
-    ASSERT_FALSE(status.isError());
+    ASSERT_SOME(status);
 
     EXPECT_TRUE(status->infos().empty());
   }
@@ -1348,7 +1359,7 @@ TEST_F(MasterQuotaTest, AuthorizeGetUpdateQuotaRequests)
 
     // Convert JSON response to `QuotaStatus` protobuf.
     const Try<QuotaStatus> status = ::protobuf::parse<QuotaStatus>(parse.get());
-    ASSERT_FALSE(status.isError());
+    ASSERT_SOME(status);
 
     EXPECT_EQ(1, status->infos().size());
     EXPECT_EQ(ROLE1, status->infos(0).role());
@@ -1455,7 +1466,7 @@ TEST_F(MasterQuotaTest, AuthorizeGetUpdateQuotaRequestsWithoutPrincipal)
 
     // Convert JSON response to `QuotaStatus` protobuf.
     const Try<QuotaStatus> status = ::protobuf::parse<QuotaStatus>(parse.get());
-    ASSERT_FALSE(status.isError());
+    ASSERT_SOME(status);
 
     EXPECT_EQ(1, status->infos().size());
     EXPECT_EQ(ROLE1, status->infos(0).role());
@@ -1536,7 +1547,7 @@ TEST_F(MasterQuotaTest, DISABLED_ChildRole)
 
     // Convert JSON response to `QuotaStatus` protobuf.
     const Try<QuotaStatus> status = ::protobuf::parse<QuotaStatus>(parse.get());
-    ASSERT_FALSE(status.isError());
+    ASSERT_SOME(status);
     ASSERT_EQ(2, status->infos().size());
 
     // Don't assume that the quota for child and parent are returned

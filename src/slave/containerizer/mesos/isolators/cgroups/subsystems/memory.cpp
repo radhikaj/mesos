@@ -43,7 +43,6 @@ using process::Future;
 using process::Owned;
 using process::PID;
 
-using std::list;
 using std::ostringstream;
 using std::string;
 using std::vector;
@@ -58,7 +57,7 @@ static const vector<Level> levels()
 }
 
 
-Try<Owned<Subsystem>> MemorySubsystem::create(
+Try<Owned<SubsystemProcess>> MemorySubsystemProcess::create(
     const Flags& flags,
     const string& hierarchy)
 {
@@ -104,18 +103,18 @@ Try<Owned<Subsystem>> MemorySubsystem::create(
     }
   }
 
-  return Owned<Subsystem>(new MemorySubsystem(flags, hierarchy));
+  return Owned<SubsystemProcess>(new MemorySubsystemProcess(flags, hierarchy));
 }
 
 
-MemorySubsystem::MemorySubsystem(
+MemorySubsystemProcess::MemorySubsystemProcess(
     const Flags& _flags,
     const string& _hierarchy)
   : ProcessBase(process::ID::generate("cgroups-memory-subsystem")),
-    Subsystem(_flags, _hierarchy) {}
+    SubsystemProcess(_flags, _hierarchy) {}
 
 
-Future<Nothing> MemorySubsystem::recover(
+Future<Nothing> MemorySubsystemProcess::recover(
     const ContainerID& containerId,
     const string& cgroup)
 {
@@ -132,7 +131,7 @@ Future<Nothing> MemorySubsystem::recover(
 }
 
 
-Future<Nothing> MemorySubsystem::prepare(
+Future<Nothing> MemorySubsystemProcess::prepare(
     const ContainerID& containerId,
     const string& cgroup)
 {
@@ -149,7 +148,7 @@ Future<Nothing> MemorySubsystem::prepare(
 }
 
 
-Future<ContainerLimitation> MemorySubsystem::watch(
+Future<ContainerLimitation> MemorySubsystemProcess::watch(
     const ContainerID& containerId,
     const string& cgroup)
 {
@@ -163,7 +162,7 @@ Future<ContainerLimitation> MemorySubsystem::watch(
 }
 
 
-Future<Nothing> MemorySubsystem::update(
+Future<Nothing> MemorySubsystemProcess::update(
     const ContainerID& containerId,
     const string& cgroup,
     const Resources& resources)
@@ -300,7 +299,7 @@ Future<Nothing> MemorySubsystem::update(
 }
 
 
-Future<ResourceStatistics> MemorySubsystem::usage(
+Future<ResourceStatistics> MemorySubsystemProcess::usage(
     const ContainerID& containerId,
     const string& cgroup)
 {
@@ -379,8 +378,8 @@ Future<ResourceStatistics> MemorySubsystem::usage(
   }
 
   // Get pressure counter readings.
-  list<Level> levels;
-  list<Future<uint64_t>> values;
+  vector<Level> levels;
+  vector<Future<uint64_t>> values;
   foreachpair (Level level,
                const Owned<Counter>& counter,
                info->pressureCounters) {
@@ -389,8 +388,8 @@ Future<ResourceStatistics> MemorySubsystem::usage(
   }
 
   return await(values)
-    .then(defer(PID<MemorySubsystem>(this),
-                &MemorySubsystem::_usage,
+    .then(defer(PID<MemorySubsystemProcess>(this),
+                &MemorySubsystemProcess::_usage,
                 containerId,
                 result,
                 levels,
@@ -398,11 +397,11 @@ Future<ResourceStatistics> MemorySubsystem::usage(
 }
 
 
-Future<ResourceStatistics> MemorySubsystem::_usage(
+Future<ResourceStatistics> MemorySubsystemProcess::_usage(
     const ContainerID& containerId,
     ResourceStatistics result,
-    const list<Level>& levels,
-    const list<Future<uint64_t>>& values)
+    const vector<Level>& levels,
+    const vector<Future<uint64_t>>& values)
 {
   if (!infos.contains(containerId)) {
     return Failure(
@@ -410,7 +409,7 @@ Future<ResourceStatistics> MemorySubsystem::_usage(
         ": Unknown container");
   }
 
-  list<Level>::const_iterator iterator = levels.begin();
+  vector<Level>::const_iterator iterator = levels.begin();
   foreach (const Future<uint64_t>& value, values) {
     if (value.isReady()) {
       switch (*iterator) {
@@ -437,7 +436,7 @@ Future<ResourceStatistics> MemorySubsystem::_usage(
 }
 
 
-Future<Nothing> MemorySubsystem::cleanup(
+Future<Nothing> MemorySubsystemProcess::cleanup(
     const ContainerID& containerId,
     const string& cgroup)
 {
@@ -458,7 +457,7 @@ Future<Nothing> MemorySubsystem::cleanup(
 }
 
 
-void MemorySubsystem::oomListen(
+void MemorySubsystemProcess::oomListen(
     const ContainerID& containerId,
     const string& cgroup)
 {
@@ -480,15 +479,15 @@ void MemorySubsystem::oomListen(
             << containerId;
 
   info->oomNotifier.onReady(
-      defer(PID<MemorySubsystem>(this),
-            &MemorySubsystem::oomWaited,
+      defer(PID<MemorySubsystemProcess>(this),
+            &MemorySubsystemProcess::oomWaited,
             containerId,
             cgroup,
             lambda::_1));
 }
 
 
-void MemorySubsystem::oomWaited(
+void MemorySubsystemProcess::oomWaited(
     const ContainerID& containerId,
     const string& cgroup,
     const Future<Nothing>& future)
@@ -572,7 +571,7 @@ void MemorySubsystem::oomWaited(
 }
 
 
-void MemorySubsystem::pressureListen(
+void MemorySubsystemProcess::pressureListen(
     const ContainerID& containerId,
     const string& cgroup)
 {

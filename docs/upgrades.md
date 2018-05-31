@@ -43,6 +43,40 @@ We categorize the changes as follows:
   </thead>
 <tr>
   <td style="word-wrap: break-word; overflow-wrap: break-word;"><!--Version-->
+  1.7.x
+  </td>
+
+  <td style="word-wrap: break-word; overflow-wrap: break-word;"><!--Mesos Core-->
+    <ul style="padding-left:10px;">
+      <li>A <a href="#1-7-x-linux-devices-isolator">Linux devices isolator</a></li>
+    </ul>
+  </td>
+
+  <td style="word-wrap: break-word; overflow-wrap: break-word;"><!--Flags-->
+    <ul style="padding-left:10px;">
+      <li>A <a href="#1-7-x-enforce-container-ports">enforce_container_ports</a></li>
+    </ul>
+  </td>
+
+  <td style="word-wrap: break-word; overflow-wrap: break-word;"><!--Framework API-->
+    <ul style="padding-left:10px;">
+    </ul>
+  </td>
+
+  <td style="word-wrap: break-word; overflow-wrap: break-word;"><!--Module API-->
+    <ul style="padding-left:10px;">
+      <li>C <a href="#1-7-x-container-logger">ContainerLogger module interface changes</a></li>
+      <li>C <a href="#1-7-x-isolator-recover">Isolator::recover module interface change</a></li>
+    </ul>
+  </td>
+
+  <td style="word-wrap: break-word; overflow-wrap: break-word;"><!--Endpoints-->
+    <ul style="padding-left:10px;">
+    </ul>
+  </td>
+</tr>
+<tr>
+  <td style="word-wrap: break-word; overflow-wrap: break-word;"><!--Version-->
   1.6.x
   </td>
 
@@ -396,6 +430,28 @@ We categorize the changes as follows:
   </td>
 </tr>
 </table>
+
+## Upgrading from 1.6.x to 1.7.x ##
+
+<a name="1-7-x-linux-devices-isolator"></a>
+
+* A new [`linux/devices`](isolators/linux-devices.md) isolator has been
+  added. This isolator automatically populates containers with devices
+  that have been whitelisted with the `--allowed_devices` agent flag.
+
+<a name="1-7-x-enforce-container-ports"></a>
+
+* A new [`--enforce_container_ports`](configuration/agent.md#enforce_container_ports)
+  has been added to toggle whether the [`network/ports`](isolators/network-ports.md)
+  isolator should enforce TCP ports usage limits.
+
+<a name="1-7-x-container-logger"></a>
+
+* `ContainerLogger` module interface has been changed. The `prepare()` method now takes `ContainerID` and `ContainerConfig` instead.
+
+<a name="1-7-x-isolator-recover"></a>
+
+* `Isolator::recover()` has been updated to take an `std::vector` instead of `std::list` of container states.
 
 ## Upgrading from 1.5.x to 1.6.x ##
 

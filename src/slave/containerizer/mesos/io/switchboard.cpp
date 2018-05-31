@@ -163,7 +163,7 @@ bool IOSwitchboard::supportsStandalone()
 
 
 Future<Nothing> IOSwitchboard::recover(
-    const list<ContainerState>& states,
+    const vector<ContainerState>& states,
     const hashset<ContainerID>& orphans)
 {
 #ifdef __WINDOWS__
@@ -287,12 +287,7 @@ Future<Option<ContainerLaunchInfo>> IOSwitchboard::prepare(
   // launched, the nested containers launched later might not have
   // access to the root parent container's ExecutorInfo (i.e.,
   // 'containerConfig.executor_info()' will be empty).
-  return logger->prepare(
-      containerConfig.executor_info(),
-      containerConfig.directory(),
-      containerConfig.has_user()
-        ? Option<string>(containerConfig.user())
-        : None())
+  return logger->prepare(containerId, containerConfig)
     .then(defer(
         PID<IOSwitchboard>(this),
         &IOSwitchboard::_prepare,
@@ -307,19 +302,25 @@ Future<Option<ContainerLaunchInfo>> IOSwitchboard::_prepare(
     const ContainerConfig& containerConfig,
     const ContainerIO& loggerIO)
 {
+  bool requiresServer = IOSwitchboard::requiresServer(containerConfig);
+
   // On windows, we do not yet support running an io switchboard
   // server, so we must error out if it is required.
 #ifdef __WINDOWS__
-  if (IOSwitchboard::requiresServer(containerConfig)) {
+  if (requiresServer) {
       return Failure(
           "IO Switchboard server is not supported on windows");
   }
 #endif
 
+  LOG(INFO) << "Container logger module finished preparing container "
+            << containerId << "; IOSwitchboard server is "
+            << (requiresServer ? "" : "not") << " required";
+
   bool hasTTY = containerConfig.has_container_info() &&
                 containerConfig.container_info().has_tty_info();
 
-  if (!IOSwitchboard::requiresServer(containerConfig)) {
+  if (!requiresServer) {
     CHECK(!containerIOs.contains(containerId));
     containerIOs[containerId] = loggerIO;
 
@@ -814,7 +815,7 @@ Future<Nothing> IOSwitchboard::cleanup(
 
   // NOTE: We use 'await' here so that we can handle the FAILED and
   // DISCARDED cases as well.
-  return await(list<Future<Option<int>>>{status}).then(
+  return await(vector<Future<Option<int>>>{status}).then(
       defer(self(), [this, containerId]() -> Future<Nothing> {
         // We need to call `_extractContainerIO` here in case the
         // `IOSwitchboard` still holds a reference to the container's

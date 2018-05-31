@@ -171,15 +171,18 @@ LDADD += -lglog
 endif
 
 if ENABLE_GRPC
+if !ENABLE_SSL
+GRPC_VARIANT = _unsecure
+endif
+
 if WITH_BUNDLED_GRPC
 MESOS_CPPFLAGS += -I../$(GRPC)/include
-LIB_GRPC = ../$(GRPC)/libs/opt/libgrpc++.a	\
-           ../$(GRPC)/libs/opt/libgrpc.a	\
-           ../$(GRPC)/libs/opt/libgpr.a		\
-           -lssl -lcrypto
+LIB_GRPC = ../$(GRPC)/libs/opt/libgrpc++$(GRPC_VARIANT).a	\
+           ../$(GRPC)/libs/opt/libgrpc$(GRPC_VARIANT).a		\
+           ../$(GRPC)/libs/opt/libgpr.a
 GRPC_CPP_PLUGIN = ../$(GRPC)/bins/opt/grpc_cpp_plugin
 else
-LIB_GRPC = -lgrpc++ -lgrpc -lgpr -lssl -lcrypto
+LIB_GRPC = -lgrpc++$(GRPC_VARIANT) -lgrpc$(GRPC_VARIANT) -lgpr
 GRPC_CPP_PLUGIN = @GRPC_CXX_PLUGIN@
 endif
 endif
@@ -1332,6 +1335,7 @@ MESOS_LINUX_FILES =									\
   slave/containerizer/mesos/isolators/gpu/nvml.cpp					\
   slave/containerizer/mesos/isolators/gpu/volume.cpp					\
   slave/containerizer/mesos/isolators/linux/capabilities.cpp				\
+  slave/containerizer/mesos/isolators/linux/devices.cpp					\
   slave/containerizer/mesos/isolators/namespaces/ipc.cpp				\
   slave/containerizer/mesos/isolators/namespaces/pid.cpp				\
   slave/containerizer/mesos/isolators/network/cni/cni.cpp				\
@@ -1380,6 +1384,7 @@ MESOS_LINUX_FILES +=									\
   slave/containerizer/mesos/isolators/gpu/nvml.hpp					\
   slave/containerizer/mesos/isolators/gpu/volume.hpp					\
   slave/containerizer/mesos/isolators/linux/capabilities.hpp				\
+  slave/containerizer/mesos/isolators/linux/devices.hpp					\
   slave/containerizer/mesos/isolators/namespaces/ipc.hpp				\
   slave/containerizer/mesos/isolators/namespaces/pid.hpp				\
   slave/containerizer/mesos/isolators/network/cni/cni.hpp				\
@@ -2661,6 +2666,7 @@ mesos_tests_SOURCES +=						\
   tests/containerizer/cgroups_tests.cpp				\
   tests/containerizer/cni_isolator_tests.cpp			\
   tests/containerizer/docker_volume_isolator_tests.cpp		\
+  tests/containerizer/linux_devices_isolator_tests.cpp		\
   tests/containerizer/linux_filesystem_isolator_tests.cpp	\
   tests/containerizer/fs_tests.cpp				\
   tests/containerizer/memory_pressure_tests.cpp			\
