@@ -81,6 +81,8 @@ class OsTest : public TemporaryDirectoryTest {};
 
 
 #ifndef __WINDOWS__
+// Note: This test is disabled on Windows since `os::raw::environment`is not
+// implemented for Windows.
 TEST_F(OsTest, Environment)
 {
   // Make sure the environment has some entries with '=' in the value.
@@ -379,7 +381,8 @@ TEST_F(OsTest, Sysctl)
 #endif // __APPLE__ || __FreeBSD__
 
 
-// TODO(hausdorff): Enable when we implement `Fork` and `Exec`. See MESOS-3638.
+// Note: This test is disabled for Windows since there is
+// no implementation of `fork` and `exec` on Windows.
 #ifndef __WINDOWS__
 TEST_F(OsTest, Children)
 {
@@ -439,6 +442,8 @@ void dosetsid()
 }
 
 
+// Note: This test is disabled for Windows since there is
+// no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, Killtree)
 {
   Try<ProcessTree> tree =
@@ -562,6 +567,8 @@ TEST_F(OsTest, Killtree)
 }
 
 
+// Note: This test is disabled for Windows since there is
+// no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, KilltreeNoRoot)
 {
   Try<ProcessTree> tree =
@@ -679,6 +686,8 @@ TEST_F(OsTest, KilltreeNoRoot)
 }
 
 
+// Note: This test is disabled for Windows since there is
+// no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, ProcessExists)
 {
   // Check we exist.
@@ -738,6 +747,8 @@ TEST_F(OsTest, ProcessExists)
 }
 
 
+// Note: Enable this test when there is an implementation of `os::getuid` and
+// `os::chown` for Windows.
 TEST_F(OsTest, User)
 {
   Try<string> user_ = os::shell("id -un");
@@ -803,6 +814,8 @@ TEST_F(OsTest, User)
 }
 
 
+// Enable this test when there is an implementation of
+// `os::getuid`, `os::getgid`, `os::chmod` and `os::chown` for Windows.
 TEST_F(OsTest, SYMLINK_Chown)
 {
   Result<uid_t> uid = os::getuid();
@@ -873,6 +886,8 @@ TEST_F(OsTest, SYMLINK_Chown)
 }
 
 
+// Enable this test when there is an implementation of
+// `os::getuid`, `os::getgid`, `os::chmod` and `os::chown` for Windows.
 TEST_F(OsTest, ChownNoAccess)
 {
   Result<uid_t> uid = os::getuid();
