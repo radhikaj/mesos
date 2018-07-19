@@ -42,6 +42,14 @@ inline std::map<std::string, std::string> environment()
     i = i + entry.size() + 1;
 
     size_t position = entry.find_first_of(L'=');
+    if (position == 0) {
+      // `GetEnvironmentStrings returns strings which can begin with
+      // `=`. Example: `=C:=C:\\Windows\\System32`.
+      // This creates multiple blank string keys
+      // which is not desirable.
+      // We want to extract the `=c:` portion and use that as the key.
+      position = entry.find_first_of(L'=', 1);
+    }
     if (position == std::string::npos) {
       continue; // Skip malformed environment entries.
     }

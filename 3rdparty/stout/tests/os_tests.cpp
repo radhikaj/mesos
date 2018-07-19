@@ -80,21 +80,51 @@ using std::vector;
 class OsTest : public TemporaryDirectoryTest {};
 
 
-#ifndef __WINDOWS__
-// Note: This test is disabled on Windows since `os::raw::environment`is not
-// implemented for Windows.
 TEST_F(OsTest, Environment)
 {
   // Make sure the environment has some entries with '=' in the value.
   os::setenv("SOME_SPECIAL_FLAG", "--flag=foobar");
 
-  char** environ = os::raw::environment();
+#ifndef __WINDOWS__
+  char** rawEnviron = os::raw::environment();
+#else
+  const std::unique_ptr<wchar_t[], decltype(&::FreeEnvironmentStringsW)> env(
+    ::GetEnvironmentStringsW(), &::FreeEnvironmentStringsW);
+  std::vector<string> rawEnviron;
+  for (size_t i = 0; env[i] != L'\0' && env[i + 1] != L'\0';
+       /* incremented below */) {
+    std::wstring entry(&env[i]);
+
+    // Increment past the current environment string and null terminator.
+    i = i + entry.size() + 1;
+
+    size_t position = entry.find_first_of(L'=');
+    if (position == std::string::npos) {
+      continue; // Skip malformed environment entries.
+    }
+    rawEnviron.push_back(stringify(entry.substr(0)));
+  }
+#endif // __WINDOWS__
 
   hashmap<string, string> environment = os::environment();
 
-  for (size_t index = 0; environ[index] != nullptr; index++) {
-    string entry(environ[index]);
+#ifndef __WINDOWS__
+  for (size_t index = 0; rawEnviron[index] != nullptr; index++) {
+#else
+  for (size_t index = 0; index <rawEnviron.size(); index++) {
+#endif // __WINDOWS__
+    string entry(rawEnviron[index]);
     size_t position = entry.find_first_of('=');
+#ifdef __WINDOWS__
+    if (position == 0)
+    {
+      // `GetEnvironmentStrings returns strings which can begin with                                                                                                               
+      // `=`. Example: "=C:=C:\\Windows\\System32".
+      // While comparing with the map returned by `os::environment`,
+      // we want to extract the `=c:` portion and use that as the key.
+      position = entry.find_first_of('=', 1);
+    }
+#endif // __WINDOWS__
     if (position == string::npos) {
       continue; // Skip malformed environment entries.
     }
@@ -104,7 +134,6 @@ TEST_F(OsTest, Environment)
     EXPECT_EQ(value, environment[key]);
   }
 }
-#endif // __WINDOWS__
 
 
 TEST_F(OsTest, TrivialEnvironment)
@@ -381,16 +410,15 @@ TEST_F(OsTest, Sysctl)
 #endif // __APPLE__ || __FreeBSD__
 
 
-// Note: This test is disabled for Windows since there is
+// NOTE: This test is disabled for Windows since there is
 // no implementation of `fork` and `exec` on Windows.
-#ifndef __WINDOWS__
 TEST_F(OsTest, Children)
 {
   Try<set<pid_t>> children = os::children(getpid());
 
   ASSERT_SOME(children);
   EXPECT_TRUE(children->empty());
-
+#ifndef __WINDOWS__
   Try<ProcessTree> tree =
     Fork(None(),                   // Child.
          Fork(Exec(SLEEP_COMMAND(10))),   // Grandchild.
@@ -401,6 +429,7 @@ TEST_F(OsTest, Children)
 
   pid_t child = tree->process.pid;
   pid_t grandchild = tree->children.front().process.pid;
+#endif
 
   // Ensure the non-recursive children does not include the
   // grandchild.
@@ -442,7 +471,7 @@ void dosetsid()
 }
 
 
-// Note: This test is disabled for Windows since there is
+// NOTE: This test is disabled for Windows since there is
 // no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, Killtree)
 {
@@ -686,7 +715,7 @@ TEST_F(OsTest, KilltreeNoRoot)
 }
 
 
-// Note: This test is disabled for Windows since there is
+// NOTE: This test is disabled for Windows since there is
 // no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, ProcessExists)
 {
@@ -747,7 +776,7 @@ TEST_F(OsTest, ProcessExists)
 }
 
 
-// Note: Enable this test when there is an implementation of `os::getuid` and
+// NOTE: Enable this test when there is an implementation of `os::getuid` and
 // `os::chown` for Windows.
 TEST_F(OsTest, User)
 {
@@ -814,7 +843,7 @@ TEST_F(OsTest, User)
 }
 
 
-// Enable this test when there is an implementation of
+// NOTE: Enable this test when there is an implementation of
 // `os::getuid`, `os::getgid`, `os::chmod` and `os::chown` for Windows.
 TEST_F(OsTest, SYMLINK_Chown)
 {
@@ -886,7 +915,7 @@ TEST_F(OsTest, SYMLINK_Chown)
 }
 
 
-// Enable this test when there is an implementation of
+// NOTE: Enable this test when there is an implementation of
 // `os::getuid`, `os::getgid`, `os::chmod` and `os::chown` for Windows.
 TEST_F(OsTest, ChownNoAccess)
 {

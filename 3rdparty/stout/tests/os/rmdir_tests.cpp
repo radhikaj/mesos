@@ -230,7 +230,7 @@ TEST_F(RmdirTest, FailToRemoveNestedInvalidPath)
 #ifndef __WINDOWS__
 // This test verifies that `rmdir` can remove a directory with a
 // device file.
-// Enable this test if `os::rdev` and `os::mknod` are implemented in Windows.
+// NOTE: Enable this test if `os::rdev` and `os::mknod` are implemented in Windows.
 // 'os::rdev` calls `::lstat` and `::stat`.
 TEST_F(RmdirTest, RemoveDirectoryWithDeviceFile)
 {

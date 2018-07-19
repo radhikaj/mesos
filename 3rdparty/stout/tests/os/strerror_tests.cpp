@@ -46,8 +46,8 @@ TEST(StrerrorTest, InvalidErrno)
 // values that `h_errno` can have.
 //
 // [1] http://linux.die.net/man/3/hstrerror
-// Note: This test is permanently disabled on Windows since it tests 
-// against Posix values of Posix function `::hstrerror`.
+// NOTE: This test is permanently disabled on Windows since it tests
+// against POSIX values of POSIX function `::hstrerror`.
 #ifndef __WINDOWS__
 TEST(StrerrorTest, ValidHerrno)
 {

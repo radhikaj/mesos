@@ -37,7 +37,7 @@ using proc::ProcessStatus;
 using std::set;
 using std::string;
 
-// Note: The `proc::*` functions map to reading from `/proc`
+// NOTE: The `proc::*` functions map to reading from `/proc`
 // which does not have an equivalent on Windows.
 // These tests are permanently disabled on Windows.
 
