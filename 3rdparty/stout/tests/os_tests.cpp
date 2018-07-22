@@ -64,8 +64,8 @@
 
 #ifndef __WINDOWS__
 using os::Exec;
-#endif // __WINDOWS__
 using os::Fork;
+#endif // __WINDOWS__
 using os::Process;
 using os::ProcessTree;
 
@@ -77,7 +77,8 @@ using std::string;
 using std::vector;
 
 
-class OsTest : public TemporaryDirectoryTest {};
+class OsTest : public TemporaryDirectoryTest
+{};
 
 
 TEST_F(OsTest, Environment)
@@ -111,14 +112,13 @@ TEST_F(OsTest, Environment)
 #ifndef __WINDOWS__
   for (size_t index = 0; rawEnviron[index] != nullptr; index++) {
 #else
-  for (size_t index = 0; index <rawEnviron.size(); index++) {
+  for (size_t index = 0; index < rawEnviron.size(); index++) {
 #endif // __WINDOWS__
     string entry(rawEnviron[index]);
     size_t position = entry.find_first_of('=');
 #ifdef __WINDOWS__
-    if (position == 0)
-    {
-      // `GetEnvironmentStrings returns strings which can begin with                                                                                                               
+    if (position == 0) {
+      // `GetEnvironmentStrings returns strings which can begin with
       // `=`. Example: "=C:=C:\\Windows\\System32".
       // While comparing with the map returned by `os::environment`,
       // we want to extract the `=c:` portion and use that as the key.
@@ -200,9 +200,9 @@ TEST_F(OsTest, Cloexec)
 TEST_F(OsTest, Cloexec)
 {
   Try<int_fd> fd = os::open(
-      "cloexec",
-      O_CREAT | O_WRONLY | O_APPEND | O_CLOEXEC,
-      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    "cloexec",
+    O_CREAT | O_WRONLY | O_APPEND | O_CLOEXEC,
+    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
   ASSERT_SOME(fd);
   EXPECT_SOME_TRUE(os::isCloexec(fd.get()));
@@ -213,9 +213,9 @@ TEST_F(OsTest, Cloexec)
   close(fd.get());
 
   fd = os::open(
-      "non-cloexec",
-      O_CREAT | O_WRONLY | O_APPEND,
-      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    "non-cloexec",
+    O_CREAT | O_WRONLY | O_APPEND,
+    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
   ASSERT_SOME(fd);
   EXPECT_SOME_FALSE(os::isCloexec(fd.get()));
@@ -291,10 +291,9 @@ TEST_F(OsTest, SYMLINK_Size)
 
   // The reported file size should be the same whether following links
   // or not, given that the input parameter is not a link.
-  EXPECT_SOME_EQ(size,
-      os::stat::size(file, FollowSymlink::FOLLOW_SYMLINK));
-  EXPECT_SOME_EQ(size,
-      os::stat::size(file, FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(size, os::stat::size(file, FollowSymlink::FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    size, os::stat::size(file, FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
 
   EXPECT_ERROR(os::stat::size("aFileThatDoesNotExist"));
 
@@ -308,13 +307,12 @@ TEST_F(OsTest, SYMLINK_Size)
 #ifdef __WINDOWS__
   // On Windows, the reported size of a symlink is zero.
   EXPECT_SOME_EQ(
-      Bytes(0),
-      os::stat::size(link, FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+    Bytes(0), os::stat::size(link, FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
 #else
   // Not following links, we expect the string length of the linked path.
   EXPECT_SOME_EQ(
-      Bytes(file.size()),
-      os::stat::size(link, FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+    Bytes(file.size()),
+    os::stat::size(link, FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
 #endif // __WINDOWS__
 }
 
@@ -339,9 +337,9 @@ TEST_F(OsTest, BootId)
 
   using namespace std::chrono;
   EXPECT_LT(
-      Seconds(numified.get()),
-      Seconds(duration_cast<seconds>(system_clock::now().time_since_epoch())
-                .count()));
+    Seconds(numified.get()),
+    Seconds(
+      duration_cast<seconds>(system_clock::now().time_since_epoch()).count()));
 #endif // APPLE / FreeBSD / WINDOWS
 }
 
@@ -409,40 +407,86 @@ TEST_F(OsTest, Sysctl)
 }
 #endif // __APPLE__ || __FreeBSD__
 
+void CreateChildProcess(PROCESS_INFORMATION *process_info, bool add_to_job = false)
+{
+    STARTUPINFOW startup_info = {};
+    startup_info.cb = sizeof(STARTUPINFOW);
+    //WCHAR pszCMD[MAX_PATH] = L"cmd.exe /K echo hi";
+    std::wstring s(L"cmd.exe /K echo hi");
+    const BOOL result = ::CreateProcessW(
+        // This is replaced by the first token of `arg_buffer` string.
+        nullptr,
+        const_cast<LPWSTR>(s.data()), // pszCMD,
+        nullptr,
+        nullptr,
+        FALSE, // Inherit parent process handles (such as those in `pipes`).
+        CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
+        nullptr,
+        nullptr, // Inherit working directory.
+        &startup_info,
+        process_info);
+    ASSERT_NE(0, result);
 
-// NOTE: This test is disabled for Windows since there is
-// no implementation of `fork` and `exec` on Windows.
+    if (add_to_job)
+    {
+        Try<std::wstring> name = os::name_job(getpid());
+        ASSERT_SOME(name);
+        // This creates a named job object in the Windows kernel.
+        // This handle must remain in scope (and open) until
+        // a running process is assigned to it.
+        Try<SharedHandle> handle = os::create_job(name.get());
+        ASSERT_SOME(handle);
+        Try<Nothing> result_set_close_limit =
+          os::set_job_kill_on_close_limit(getpid());
+        ASSERT_SOME(result_set_close_limit);        
+        pid_t child = static_cast<pid_t>((*process_info).dwProcessId);
+        Try<Nothing> result_assign_child = os::assign_job(handle.get(), child);
+        ASSERT_SOME(result_assign_child);
+        ASSERT_NE(0, ResumeThread((*process_info).hThread));
+    }
+}
+
 TEST_F(OsTest, Children)
 {
   Try<set<pid_t>> children = os::children(getpid());
 
   ASSERT_SOME(children);
-  EXPECT_TRUE(children->empty());
 #ifndef __WINDOWS__
-  Try<ProcessTree> tree =
-    Fork(None(),                   // Child.
-         Fork(Exec(SLEEP_COMMAND(10))),   // Grandchild.
-         Exec(SLEEP_COMMAND(10)))();
+  EXPECT_TRUE(children->empty());
+  Try<ProcessTree> tree = Fork(
+    None(), // Child.
+    Fork(Exec(SLEEP_COMMAND(10))), // Grandchild.
+    Exec(SLEEP_COMMAND(10)))();
 
   ASSERT_SOME(tree);
   ASSERT_EQ(1u, tree->children.size());
 
   pid_t child = tree->process.pid;
   pid_t grandchild = tree->children.front().process.pid;
-#endif
+#else
+  // NOTE: On Windows, while debugging, children will include conhost.exe.
+  const size_t num_children = children.get().size();
+  PROCESS_INFORMATION process_info = {};
+  CreateChildProcess(&process_info);
+#endif // __WINDOWS__
 
   // Ensure the non-recursive children does not include the
   // grandchild.
   children = os::children(getpid(), false);
 
   ASSERT_SOME(children);
+#ifndef __WINDOWS__
   EXPECT_EQ(1u, children->size());
   EXPECT_EQ(1u, children->count(child));
+#else
+  EXPECT_EQ(num_children + 1u, children->size());
+#endif // __WINDOWS__
 
   children = os::children(getpid());
 
   ASSERT_SOME(children);
 
+#ifndef __WINDOWS__
   // Depending on whether or not the shell has fork/exec'ed in each
   // above 'Exec', we could have 2 or 4 children. That is, some shells
   // might simply for exec the command above (i.e., 'sleep 10') while
@@ -450,19 +494,28 @@ TEST_F(OsTest, Children)
   // process as well.
   EXPECT_LE(2u, children->size());
   EXPECT_GE(4u, children->size());
-
   EXPECT_EQ(1u, children->count(child));
   EXPECT_EQ(1u, children->count(grandchild));
 
   // Cleanup by killing the descendant processes.
   EXPECT_EQ(0, kill(grandchild, SIGKILL));
-  EXPECT_EQ(0, kill(child, SIGKILL));
-
+  __ EXPECT_EQ(0, kill(child, SIGKILL));
   // We have to reap the child for running the tests in repetition.
   ASSERT_EQ(child, waitpid(child, nullptr, 0));
+#else
+  ASSERT_NE(0, TerminateProcess(process_info.hProcess, 0));
+  children = os::children(getpid(), false);
+  ASSERT_SOME(children);
+#ifndef __WINDOWS__
+  EXPECT_EQ(0u, children->size());
+#else
+  EXPECT_EQ(num_children, children->size());
+#endif
+
+#endif // __WINDOWS__
 }
 
-
+#ifndef __WINDOWS__
 void dosetsid()
 {
   if (::setsid() == -1) {
@@ -470,20 +523,22 @@ void dosetsid()
   }
 }
 
-
 // NOTE: This test is disabled for Windows since there is
 // no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, Killtree)
 {
-  Try<ProcessTree> tree =
-    Fork(&dosetsid,                        // Child.
-         Fork(None(),                      // Grandchild.
-              Fork(None(),                 // Great-grandchild.
-                   Fork(&dosetsid,         // Great-great-granchild.
-                        Exec(SLEEP_COMMAND(10))),
-                   Exec(SLEEP_COMMAND(10))),
-              Exec("exit 0")),
-         Exec(SLEEP_COMMAND(10)))();
+  Try<ProcessTree> tree = Fork(
+    &dosetsid, // Child.
+    Fork(
+      None(), // Grandchild.
+      Fork(
+        None(), // Great-grandchild.
+        Fork(
+          &dosetsid, // Great-great-granchild.
+          Exec(SLEEP_COMMAND(10))),
+        Exec(SLEEP_COMMAND(10))),
+      Exec("exit 0")),
+    Exec(SLEEP_COMMAND(10)))();
 
   ASSERT_SOME(tree);
 
@@ -535,8 +590,7 @@ TEST_F(OsTest, Killtree)
 
   // Kill the process tree and follow sessions and groups to make sure
   // we cross the broken link due to the grandchild.
-  Try<list<ProcessTree>> trees =
-    os::killtree(child, SIGKILL, true, true);
+  Try<list<ProcessTree>> trees = os::killtree(child, SIGKILL, true, true);
 
   ASSERT_SOME(trees);
 
@@ -556,9 +610,9 @@ TEST_F(OsTest, Killtree)
     } else if (tree.process.pid == greatGrandchild) {
       EXPECT_TRUE(tree.contains(greatGreatGrandchild)) << tree;
     } else {
-      FAIL()
-        << "Not expecting a process tree rooted at "
-        << tree.process.pid << "\n" << tree;
+      FAIL() << "Not expecting a process tree rooted at " << tree.process.pid
+             << "\n"
+             << tree;
     }
   }
 
@@ -569,10 +623,10 @@ TEST_F(OsTest, Killtree)
     Result<os::Process> _child = os::process(child);
     ASSERT_SOME(_child);
 
-    if (os::process(greatGreatGrandchild).isNone() &&
-        os::process(greatGrandchild).isNone() &&
-        os::process(grandchild).isNone() &&
-        _child->zombie) {
+    if (
+      os::process(greatGreatGrandchild).isNone() &&
+      os::process(greatGrandchild).isNone() &&
+      os::process(grandchild).isNone() && _child->zombie) {
       break;
     }
 
@@ -600,13 +654,13 @@ TEST_F(OsTest, Killtree)
 // no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, KilltreeNoRoot)
 {
-  Try<ProcessTree> tree =
-    Fork(&dosetsid,       // Child.
-         Fork(None(),     // Grandchild.
-              Fork(None(),
-                   Exec(SLEEP_COMMAND(100))),
-              Exec(SLEEP_COMMAND(100))),
-         Exec("exit 0"))();
+  Try<ProcessTree> tree = Fork(
+    &dosetsid, // Child.
+    Fork(
+      None(), // Grandchild.
+      Fork(None(), Exec(SLEEP_COMMAND(100))),
+      Exec(SLEEP_COMMAND(100))),
+    Exec("exit 0"))();
   ASSERT_SOME(tree);
 
   // The process tree we instantiate initially looks like this:
@@ -677,10 +731,10 @@ TEST_F(OsTest, KilltreeNoRoot)
 #if __FreeBSD__
   if (!isJailed()) {
 #endif
-  // Check that grandchild's parent is also not a zombie.
-  Result<os::Process> currentParent = os::process(_grandchild->parent);
-  ASSERT_SOME(currentParent);
-  ASSERT_FALSE(currentParent->zombie);
+    // Check that grandchild's parent is also not a zombie.
+    Result<os::Process> currentParent = os::process(_grandchild->parent);
+    ASSERT_SOME(currentParent);
+    ASSERT_FALSE(currentParent->zombie);
 #ifdef __FreeBSD__
   }
 #endif
@@ -697,8 +751,9 @@ TEST_F(OsTest, KilltreeNoRoot)
   // All processes should be reparented and reaped by init.
   elapsed = Duration::zero();
   while (true) {
-    if (os::process(grandchild).isNone() &&
-        os::process(greatGrandchild).isNone()) {
+    if (
+      os::process(grandchild).isNone() &&
+      os::process(greatGrandchild).isNone()) {
       break;
     }
 
@@ -737,7 +792,9 @@ TEST_F(OsTest, ProcessExists)
 
   if (pid == 0) {
     // In child process.
-    while (true) { sleep(1); }
+    while (true) {
+      sleep(1);
+    }
 
     ABORT("Child should not reach this statement");
   }
@@ -872,46 +929,48 @@ TEST_F(OsTest, SYMLINK_Chown)
   // symlink does not chown that subtree.
   EXPECT_SOME(fs::symlink("chown/one/two", "two.link"));
   EXPECT_SOME(os::chown(9, 9, "two.link", true));
-  EXPECT_SOME_EQ(9u,
-      os::stat::uid("two.link", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
-  EXPECT_SOME_EQ(0u,
-      os::stat::uid("chown", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
-  EXPECT_SOME_EQ(0u,
-      os::stat::uid("chown/one/two/three/file",
-                    FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    9u, os::stat::uid("two.link", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    0u, os::stat::uid("chown", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    0u,
+    os::stat::uid(
+      "chown/one/two/three/file", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
 
   // Recursively chown the whole tree.
   EXPECT_SOME(os::chown(9, 9, "chown", true));
-  EXPECT_SOME_EQ(9u,
-      os::stat::uid("chown", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
-  EXPECT_SOME_EQ(9u,
-      os::stat::uid("chown/one/two/three/file",
-                    FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
-  EXPECT_SOME_EQ(9u,
-      os::stat::uid("chown/one/two/three/link",
-                    FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    9u, os::stat::uid("chown", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    9u,
+    os::stat::uid(
+      "chown/one/two/three/file", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    9u,
+    os::stat::uid(
+      "chown/one/two/three/link", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
 
   // Chown the subtree with the embedded link back and verify that it
   // doesn't follow back to the top of the tree.
   EXPECT_SOME(os::chown(0, 0, "chown/one/two/three", true));
-  EXPECT_SOME_EQ(9u,
-      os::stat::uid("chown", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
-  EXPECT_SOME_EQ(0u,
-      os::stat::uid("chown/one/two/three",
-                    FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
-  EXPECT_SOME_EQ(0u,
-      os::stat::uid("chown/one/two/three/link",
-                    FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    9u, os::stat::uid("chown", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    0u,
+    os::stat::uid("chown/one/two/three", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    0u,
+    os::stat::uid(
+      "chown/one/two/three/link", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
 
   // Verify that non-recursive chown changes the directory and not
   // its contents.
   EXPECT_SOME(os::chown(0, 0, "chown/one", false));
-  EXPECT_SOME_EQ(0u,
-      os::stat::uid("chown/one",
-                    FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
-  EXPECT_SOME_EQ(9u,
-      os::stat::uid("chown/one/file",
-                    FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    0u, os::stat::uid("chown/one", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
+  EXPECT_SOME_EQ(
+    9u, os::stat::uid("chown/one/file", FollowSymlink::DO_NOT_FOLLOW_SYMLINK));
 }
 
 
@@ -1091,7 +1150,7 @@ TEST_F(OsTest, Mknod)
 #ifdef __FreeBSD__
   // If we're in a jail on FreeBSD, we can't use mknod.
   if (isJailed()) {
-      return;
+    return;
   }
 #endif
 
