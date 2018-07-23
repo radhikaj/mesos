@@ -407,16 +407,16 @@ TEST_F(OsTest, Sysctl)
 }
 #endif // __APPLE__ || __FreeBSD__
 
-void CreateChildProcess(PROCESS_INFORMATION *process_info, bool add_to_job = false)
+#ifdef __WINDOWS__
+inline void CreateChildProcess(PROCESS_INFORMATION *process_info, bool add_to_job = false)
 {
     STARTUPINFOW startup_info = {};
     startup_info.cb = sizeof(STARTUPINFOW);
-    //WCHAR pszCMD[MAX_PATH] = L"cmd.exe /K echo hi";
     std::wstring s(L"cmd.exe /K echo hi");
     const BOOL result = ::CreateProcessW(
         // This is replaced by the first token of `arg_buffer` string.
         nullptr,
-        const_cast<LPWSTR>(s.data()), // pszCMD,
+        const_cast<LPWSTR>(s.data()),
         nullptr,
         nullptr,
         FALSE, // Inherit parent process handles (such as those in `pipes`).
@@ -426,25 +426,9 @@ void CreateChildProcess(PROCESS_INFORMATION *process_info, bool add_to_job = fal
         &startup_info,
         process_info);
     ASSERT_NE(0, result);
-
-    if (add_to_job)
-    {
-        Try<std::wstring> name = os::name_job(getpid());
-        ASSERT_SOME(name);
-        // This creates a named job object in the Windows kernel.
-        // This handle must remain in scope (and open) until
-        // a running process is assigned to it.
-        Try<SharedHandle> handle = os::create_job(name.get());
-        ASSERT_SOME(handle);
-        Try<Nothing> result_set_close_limit =
-          os::set_job_kill_on_close_limit(getpid());
-        ASSERT_SOME(result_set_close_limit);        
-        pid_t child = static_cast<pid_t>((*process_info).dwProcessId);
-        Try<Nothing> result_assign_child = os::assign_job(handle.get(), child);
-        ASSERT_SOME(result_assign_child);
-        ASSERT_NE(0, ResumeThread((*process_info).hThread));
-    }
+    ASSERT_NE(0, ResumeThread((*process_info).hThread));
 }
+#endif // __WINDOWS__
 
 TEST_F(OsTest, Children)
 {
@@ -504,12 +488,15 @@ TEST_F(OsTest, Children)
   ASSERT_EQ(child, waitpid(child, nullptr, 0));
 #else
   ASSERT_NE(0, TerminateProcess(process_info.hProcess, 0));
+  CloseHandle(process_info.hThread); CloseHandle(process_info.hProcess);
   children = os::children(getpid(), false);
   ASSERT_SOME(children);
 #ifndef __WINDOWS__
   EXPECT_EQ(0u, children->size());
 #else
   EXPECT_EQ(num_children, children->size());
+  ::CloseHandle(process_info.hThread);
+  ::CloseHandle(process_info.hProcess);
 #endif
 
 #endif // __WINDOWS__
@@ -522,11 +509,13 @@ void dosetsid()
     ABORT(string("Failed to setsid: ") + os::strerror(errno));
   }
 }
+#endif // __WINDOWS++
 
 // NOTE: This test is disabled for Windows since there is
 // no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, Killtree)
 {
+#ifndef __WINDOWS__
   Try<ProcessTree> tree = Fork(
     &dosetsid, // Child.
     Fork(
@@ -647,9 +636,39 @@ TEST_F(OsTest, Killtree)
 
   // We have to reap the child for running the tests in repetition.
   ASSERT_EQ(child, waitpid(child, nullptr, 0));
+
+#else
+  Try<set<pid_t>> children = os::children(getpid());
+  ASSERT_SOME(children);
+  size_t num_children = children.get().size();
+  PROCESS_INFORMATION process_info = {};
+  CreateChildProcess(&process_info, true);
+  pid_t child = process_info.dwProcessId;
+
+  Try<std::wstring> name = os::name_job(child);
+  ASSERT_SOME(name);
+  // This creates a named job object in the Windows kernel.
+  // This handle must remain in scope (and open) until
+  // a running process is assigned to it.
+  Try<SharedHandle> handle = os::create_job(name.get());
+  ASSERT_SOME(handle);
+  Try<Nothing> result_assign_child = os::assign_job(handle.get(), child);
+  ASSERT_SOME(result_assign_child);
+
+  children = os::children(getpid());
+  ASSERT_SOME(children);
+  ASSERT_EQ(num_children + 1u, children.get().size());
+  Try<list<ProcessTree>> trees = os::killtree(child, SIGKILL, true, true);
+  ASSERT_SOME(trees);
+  children = os::children(getpid());
+  ASSERT_SOME(children);
+  ASSERT_EQ(num_children, children.get().size());
+  ::CloseHandle(process_info.hThread);
+  ::CloseHandle(process_info.hProcess);
+#endif // __WINDOWS__
 }
 
-
+#ifndef __WINDOWS__
 // Note: This test is disabled for Windows since there is
 // no implementation of `fork` and `exec` on Windows.
 TEST_F(OsTest, KilltreeNoRoot)
@@ -768,7 +787,7 @@ TEST_F(OsTest, KilltreeNoRoot)
   EXPECT_NONE(os::process(grandchild));
   EXPECT_NONE(os::process(greatGrandchild));
 }
-
+#endif
 
 // NOTE: This test is disabled for Windows since there is
 // no implementation of `fork` and `exec` on Windows.
@@ -777,6 +796,7 @@ TEST_F(OsTest, ProcessExists)
   // Check we exist.
   EXPECT_TRUE(os::exists(::getpid()));
 
+#ifndef __WINDOWS__
   // In a FreeBSD jail, pid 1 may not exist.
 #if !defined(__FreeBSD__)
   // Check init/launchd/systemd exists.
@@ -798,7 +818,6 @@ TEST_F(OsTest, ProcessExists)
 
     ABORT("Child should not reach this statement");
   }
-
   // In parent.
   EXPECT_TRUE(os::exists(pid));
 
@@ -807,17 +826,17 @@ TEST_F(OsTest, ProcessExists)
   // Wait until the process is a zombie.
   Duration elapsed = Duration::zero();
   while (true) {
-    Result<os::Process> process = os::process(pid);
-    ASSERT_SOME(process);
+      Result<os::Process> process = os::process(pid);
+      ASSERT_SOME(process);
 
-    if (process->zombie) {
-      break;
-    }
+      if (process->zombie) {
+          break;
+      }
 
-    ASSERT_LT(elapsed, Milliseconds(100));
+      ASSERT_LT(elapsed, Milliseconds(100));
 
-    os::sleep(Milliseconds(5));
-    elapsed += Milliseconds(5);
+      os::sleep(Milliseconds(5));
+      elapsed += Milliseconds(5);
   };
 
   // The process should still 'exist', even if it's a zombie.
@@ -828,11 +847,22 @@ TEST_F(OsTest, ProcessExists)
 
   EXPECT_EQ(pid, ::waitpid(pid, &status, 0));
   EXPECT_WTERMSIG_EQ(SIGKILL, status);
-
   EXPECT_FALSE(os::exists(pid));
+#else
+  PROCESS_INFORMATION process_info = {};
+  CreateChildProcess(&process_info, true);
+  pid_t pid = process_info.dwProcessId;
+  EXPECT_TRUE(os::exists(pid));
+  ASSERT_NE(0, ::TerminateProcess(process_info.hProcess, 1));
+  EXPECT_EQ(WAIT_OBJECT_0, ::WaitForSingleObject(process_info.hProcess, INFINITE));
+  ::CloseHandle(process_info.hThread);
+  ::CloseHandle(process_info.hProcess);
+  ::Sleep(5000);
+  EXPECT_FALSE(os::exists(pid));
+#endif // __WINDOWS__
 }
 
-
+#ifndef __WINDOWS__
 // NOTE: Enable this test when there is an implementation of `os::getuid` and
 // `os::chown` for Windows.
 TEST_F(OsTest, User)
